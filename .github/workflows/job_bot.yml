@@ -31,8 +31,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python main.py
-
+        run: python job_scrapper_bot1.0/main.py
+        
       - name: Veritabanını Kaydet
         run: |
           git config --global user.name 'github-actions[bot]'
