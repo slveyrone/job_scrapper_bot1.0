@@ -6,7 +6,7 @@ import logging
 import requests
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-from playwright_stealth.stealth import stealth_sync
+
 
 # Loglama ayarları
 logging.basicConfig(
@@ -104,9 +104,7 @@ class JobScraperBot:
 
     def scrape_example_platform(self, page, url):
         """
-        Örnek scraping metodu (Örn: Kariyer.net veya Indeed).
-        Not: Platformların HTML yapıları sık değiştiği için selector'ları kendi
-        arama URL'ne ve güncel HTML yapısına göre revize etmelisin.
+        Örnek scraping metodu.
         """
         jobs = []
         try:
@@ -114,9 +112,7 @@ class JobScraperBot:
             page.goto(url, wait_until="domcontentloaded", timeout=30000)
             self.simulate_human_delay(3, 7)
 
-            # ÖRNEK SELECTOR MANTIĞI (Burayı hedef siteye göre değiştirmelisin)
-            # İlan kartlarını bul
-            job_cards = page.query_selector_all('.job-card-class') # Örnek Sınıf
+            job_cards = page.query_selector_all('.job-card-class')
             
             for card in job_cards:
                 try:
@@ -125,7 +121,6 @@ class JobScraperBot:
                     location = card.query_selector('.location-class').inner_text().strip()
                     work_type = card.query_selector('.work-type-class').inner_text().strip()
                     
-                    # Linki al ve tam URL'ye çevir
                     href = card.query_selector('a').get_attribute('href')
                     link = f"https://www.orneksite.com{href}" if href.startswith('/') else href
 
@@ -149,58 +144,67 @@ class JobScraperBot:
 
     def run(self):
         """Ana çalışma döngüsü"""
-        # 1. GitHub Actions'ta çalıştığında botları atlatmak için rastgele 0-10 dk bekleme
-        startup_delay = random.randint(0, 600)
+        startup_delay = random.randint(0, 30)
         logger.info(f"İnsan davranışı simülasyonu: {startup_delay} saniye bekleniyor...")
         time.sleep(startup_delay)
 
-        # 2. Playwright Başlatma
         with sync_playwright() as p:
+            # Native stealth argümanları ile tarayıcı başlatma
             browser = p.chromium.launch(
                 headless=True,
                 args=[
                     "--disable-blink-features=AutomationControlled",
                     "--no-sandbox",
-                    "--disable-dev-shm-usage"
+                    "--disable-dev-shm-usage",
+                    "--disable-web-security"
                 ]
             )
             
-            # Gerçekçi bir User-Agent
+            # Gerçekçi header ve viewport yapılandırması
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 viewport={'width': 1920, 'height': 1080},
-                java_script_enabled=True
+                java_script_enabled=True,
+                locale="tr-TR"
             )
             
             page = context.new_page()
-            stealth_sync(page) # Cloudflare ve bot korumalarını atlatmak için stealth mode
-            
-            # Taranacak URL'ler listesi (Kendi filtrelediğin URL'leri buraya ekle)
+
+            # Automation fingerprint'i gizlemek için script injection
+            page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
+
             target_urls = [
                 "https://www.orneksite.com/is-ilanlari?param=1",
-                # "https://www.baskasite.com/arama?q=python"
             ]
 
             all_scraped_jobs = []
             
-            # 3. Scraping İşlemi
             for url in target_urls:
                 jobs = self.scrape_example_platform(page, url)
                 all_scraped_jobs.extend(jobs)
-                self.simulate_human_delay(5, 10) # Sayfalar arası bekleme
+                self.simulate_human_delay(5, 10)
                 
             browser.close()
 
-        # 4. Veritabanı Kontrolü ve Telegram Bildirimi
         new_jobs_count = 0
         for job in all_scraped_jobs:
             if not self.is_job_exists(job['link']):
                 self.send_telegram_message(job)
                 self.add_job_to_db(job)
                 new_jobs_count += 1
-                self.simulate_human_delay(1, 3) # Telegram API limitlerine takılmamak için
+                self.simulate_human_delay(1, 3)
 
         logger.info(f"İşlem tamamlandı. Toplam bulunan yeni ilan: {new_jobs_count}")
+
+
+if __name__ == "__main__":
+    bot = JobScraperBot()
+    bot.run()
+
 
 
 if __name__ == "__main__":
