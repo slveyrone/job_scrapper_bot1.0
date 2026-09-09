@@ -6,7 +6,7 @@ import logging
 import requests
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-from playwright_stealth import stealth_async, stealth_sync
+from playwright_stealth.stealth import stealth_sync
 
 # Loglama ayarları
 logging.basicConfig(
